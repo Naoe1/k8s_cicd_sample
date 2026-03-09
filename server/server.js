@@ -3,7 +3,7 @@ import calculatorRoutes from "./routes/calculatorRoutes.js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ALLOWED_ORIGINS = ["http://localhost:8100"];
+const ALLOWED_ORIGINS = ["http://localhost:8100", "http://localhost:4200"];
 
 // Middleware
 app.use(express.json());
