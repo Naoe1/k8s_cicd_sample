@@ -1,0 +1,48 @@
+<ion-header [translucent]="true">
+  <ion-toolbar>
+    <ion-title>
+      Calculator
+    </ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content [fullscreen]="true">
+  <ion-header collapse="condense">
+    <ion-toolbar>
+      <ion-title size="large">Calculator</ion-title>
+    </ion-toolbar>
+  </ion-header>
+
+  <div class="calculator">
+    <ion-item>
+      <ion-input [(ngModel)]="display" readonly></ion-input>
+    </ion-item>
+
+    <ion-grid>
+      <ion-row>
+        <ion-col size="3"><ion-button expand="block" (click)="appendNumber('7')">7</ion-button></ion-col>
+        <ion-col size="3"><ion-button expand="block" (click)="appendNumber('8')">8</ion-button></ion-col>
+        <ion-col size="3"><ion-button expand="block" (click)="appendNumber('9')">9</ion-button></ion-col>
+        <ion-col size="3"><ion-button expand="block" color="secondary" (click)="setOperation('/')">/</ion-button></ion-col>
+      </ion-row>
+      <ion-row>
+        <ion-col size="3"><ion-button expand="block" (click)="appendNumber('4')">4</ion-button></ion-col>
+        <ion-col size="3"><ion-button expand="block" (click)="appendNumber('5')">5</ion-button></ion-col>
+        <ion-col size="3"><ion-button expand="block" (click)="appendNumber('6')">6</ion-button></ion-col>
+        <ion-col size="3"><ion-button expand="block" color="secondary" (click)="setOperation('*')">×</ion-button></ion-col>
+      </ion-row>
+      <ion-row>
+        <ion-col size="3"><ion-button expand="block" (click)="appendNumber('1')">1</ion-button></ion-col>
+        <ion-col size="3"><ion-button expand="block" (click)="appendNumber('2')">2</ion-button></ion-col>
+        <ion-col size="3"><ion-button expand="block" (click)="appendNumber('3')">3</ion-button></ion-col>
+        <ion-col size="3"><ion-button expand="block" color="secondary" (click)="setOperation('-')">-</ion-button></ion-col>
+      </ion-row>
+      <ion-row>
+        <ion-col size="3"><ion-button expand="block" (click)="appendNumber('0')">0</ion-button></ion-col>
+        <ion-col size="3"><ion-button expand="block" (click)="clear()">C</ion-button></ion-col>
+        <ion-col size="3"><ion-button expand="block" color="primary" (click)="calculate()">=</ion-button></ion-col>
+        <ion-col size="3"><ion-button expand="block" color="secondary" (click)="setOperation('+')">+</ion-button></ion-col>
+      </ion-row>
+    </ion-grid>
+  </div>
+</ion-content>
