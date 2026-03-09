@@ -3,10 +3,33 @@ import calculatorRoutes from "./routes/calculatorRoutes.js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const ALLOWED_ORIGINS = ["http://localhost:8100"];
 
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// CORS configuration for local client apps
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+
+  if (origin && ALLOWED_ORIGINS.includes(origin)) {
+    res.header("Access-Control-Allow-Origin", origin);
+  }
+
+  res.header("Vary", "Origin");
+  res.header(
+    "Access-Control-Allow-Methods",
+    "GET,POST,PUT,PATCH,DELETE,OPTIONS",
+  );
+  res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(204);
+  }
+
+  next();
+});
 
 // Simple logging middleware
 app.use((req, res, next) => {
