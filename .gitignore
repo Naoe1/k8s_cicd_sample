@@ -1,0 +1,45 @@
+# Dependencies
+node_modules/
+venv/
+env/
+.venv/
+*.egg-info/
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+logs/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Build outputs
+*.o
+*.pyc
+__pycache__/
+*.class
+
+# Kubernetes & Docker
+*.kubeconfig
+secrets/
+.kube/
+
+# Application specific
+tmp/
+temp/
+cache/
