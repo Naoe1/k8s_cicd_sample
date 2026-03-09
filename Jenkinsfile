@@ -81,6 +81,7 @@ podTemplate(
     }
 
     stage('Test') {
+      /*
       parallel(
         'Server Tests': {
           container('node') {
@@ -103,6 +104,23 @@ podTemplate(
           }
         }
       )
+      */
+
+      container('node') {
+        sh '''
+          set -eux
+          cd "$SERVER_DIR"
+          npm test -- --ci --coverage
+        '''
+
+        sh '''
+          set -eux
+          apk add --no-cache chromium
+          export CHROME_BIN=$(command -v chromium || command -v chromium-browser)
+          cd "$CLIENT_DIR"
+          npm test -- --watch=false --browsers=ChromeHeadless --code-coverage
+        '''
+      }
     }
 
     stage('Push Docker Images') {
