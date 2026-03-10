@@ -1,0 +1,78 @@
+def DOCKERHUB = 'zlhu3'
+def podLabel = "jenkins-client-pipeline-${UUID.randomUUID().toString().take(8)}"
+
+podTemplate(
+    label: podLabel,
+    namespace: 'devops-tools',
+    serviceAccount: 'jenkins-admin',
+    containers: [
+        containerTemplate(
+            name: 'jnlp', 
+            image: 'jenkins/inbound-agent:latest'
+        ),
+        containerTemplate(
+            name: 'nodejs', 
+            image: 'node:25-alpine', 
+            ttyEnabled: true, 
+            command: 'cat',
+            resourceRequestMemory: '512Mi',
+            resourceLimitMemory: '1Gi'
+        ),
+        containerTemplate(
+            name: 'kaniko',
+            image: 'gcr.io/kaniko-project/executor:debug',
+            command: 'sleep',
+            args: '99d',
+            resourceRequestMemory: '1Gi',
+            resourceLimitMemory: '2Gi'
+        )
+    ]
+) {
+    node(podLabel) {
+
+        // ── 1. CHECKOUT ───────────────────────────────────────────────
+        stage('Checkout') {
+            sh 'git clone https://github.com/Naoe1/k8s_cicd_sample .'
+        }
+
+        // ── 2. RUN TESTS ──────────────────────────────────────────────
+        // Run unit tests (Jest) and e2e tests (Cypress) in the nodejs container.
+        stage('Run Tests') {
+            container('nodejs') {
+                echo 'Starting Client Tests...'
+                dir('client/Calculator') {
+                    sh 'npm ci'
+                    sh 'CI=true npm test -- --watchAll=false'  // Unit tests
+                    sh 'npx cypress run --config-file cypress.config.ts'  // E2E tests
+                }
+            }
+        }
+
+        // ── 3. BUILD & PUSH ───────────────────────────────────────────
+        // Kaniko builds the production Dockerfile and pushes it.
+        stage('Build & Push with Kaniko') {
+            container('kaniko') {
+                withCredentials([usernamePassword(
+                    credentialsId: 'dockerhub-creds', 
+                    usernameVariable: 'DOCKER_ID', 
+                    passwordVariable: 'DOCKER_PASSWORD'
+                )]) {
+                    sh """
+                        echo "{\\\"auths\\\":{\\\"https://index.docker.io/v1/\\\":{\\\"auth\\\":\\\"\$(echo -n \${DOCKER_ID}:\${DOCKER_PASSWORD} | base64)\\\"}}}" > /kaniko/.docker/config.json
+                        
+                        echo "Building Client Image..."
+                        /kaniko/executor \
+                            --context \${WORKSPACE}/client/Calculator \
+                            --dockerfile \${WORKSPACE}/client/Calculator/Dockerfile \
+                            --destination ${DOCKERHUB}/multi-client:latest
+                    """
+                }
+            }
+        }
+
+        // ── 4. CLEANUP (Optional) ─────────────────────────────────────
+        stage('Cleanup') {
+            echo "Pipeline finished successfully. Pod ${podLabel} will now terminate."
+        }
+    }
+}
