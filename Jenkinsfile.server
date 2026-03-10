@@ -36,7 +36,6 @@ podTemplate(
         }
 
         // ── 2. RUN TESTS ──────────────────────────────────────────────
-        // Instead of 'docker run', we run tests directly in the node container.
         stage('Run Tests') {
             container('nodejs') {
                 echo 'Starting Backend Tests...'
@@ -48,7 +47,6 @@ podTemplate(
         }
 
         // ── 3. BUILD & PUSH ───────────────────────────────────────────
-        // Kaniko handles building the production Dockerfile and pushing it.
         stage('Build & Push with Kaniko') {
             container('kaniko') {
                 withCredentials([usernamePassword(
@@ -63,13 +61,13 @@ podTemplate(
                         /kaniko/executor \
                             --context \${WORKSPACE}/server \
                             --dockerfile \${WORKSPACE}/server/Dockerfile \
-                            --destination ${DOCKERHUB}/multi-server:latest
+                            --destination ${DOCKERHUB}/sample-server:latest
                     """
                 }
             }
         }
 
-        // ── 4. CLEANUP (Optional) ─────────────────────────────────────
+        // ── 4. CLEANUP ─────────────────────────────────────
         stage('Cleanup') {
             echo "Pipeline finished successfully. Pod ${podLabel} will now terminate."
         }
