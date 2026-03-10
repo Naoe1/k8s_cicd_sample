@@ -3,7 +3,7 @@ FROM node:25-alpine AS build
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm ci
+RUN CYPRESS_INSTALL_BINARY=0 CYPRESS_SKIP_VERIFY=true npm ci
 
 COPY . .
 RUN npm run build
