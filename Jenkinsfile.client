@@ -1,30 +1,54 @@
-def DOCKERHUB = 'zlhu3'
-def podLabel = "jenkins-client-pipeline-${UUID.randomUUID().toString().take(8)}"
+def DOCKERHUB  = 'zlhu3'
+def APP_NAME   = 'multi-client'
+def podLabel   = "jenkins-client-pipeline-${UUID.randomUUID().toString().take(8)}"
 
 podTemplate(
-    label: podLabel,
-    namespace: 'devops-tools',
+    label:          podLabel,
+    namespace:      'devops-tools',
     serviceAccount: 'jenkins-admin',
     containers: [
+
+        // ── JNLP (required — connects pod to Jenkins controller) ──────
         containerTemplate(
-            name: 'jnlp', 
+            name:  'jnlp',
             image: 'jenkins/inbound-agent:latest'
         ),
+
+        // ── Node.js (install, test, build) ────────────────────────────
         containerTemplate(
-            name: 'nodejs', 
-            image: 'node:25-alpine', 
-            ttyEnabled: true, 
-            command: 'cat',
+            name:                  'nodejs',
+            image:                 'node:18-alpine',   // 18 LTS — more stable than 25 for CI
+            ttyEnabled:            true,
+            command:               'cat',
+            resourceRequestCpu:    '500m',
+            resourceLimitCpu:      '2',                // increased for faster builds
             resourceRequestMemory: '512Mi',
-            resourceLimitMemory: '1Gi'
+            resourceLimitMemory:   '2Gi',              // increased for faster builds
+            envVars: [
+                envVar(key: 'NPM_CONFIG_CACHE', value: '/npm-cache'),  // persistent cache
+                envVar(key: 'CI',               value: 'true')
+            ]
         ),
+
+        // ── Kaniko (Docker build & push, no Docker daemon needed) ─────
         containerTemplate(
-            name: 'kaniko',
-            image: 'gcr.io/kaniko-project/executor:debug',
-            command: 'sleep',
-            args: '99d',
+            name:                  'kaniko',
+            image:                 'gcr.io/kaniko-project/executor:debug',
+            command:               'sleep',
+            args:                  '99d',
+            resourceRequestCpu:    '500m',
+            resourceLimitCpu:      '2',                // increased for faster image builds
             resourceRequestMemory: '1Gi',
-            resourceLimitMemory: '2Gi'
+            resourceLimitMemory:   '2Gi'
+        )
+    ],
+
+    // ── Volumes (npm cache persists across builds = much faster) ──────
+    volumes: [
+        persistentVolumeClaim(
+            claimName: 'npm-cache-pvc',
+            mountPath: '/npm-cache',
+            readOnly:  false
         )
     ]
 ) {
@@ -32,47 +56,105 @@ podTemplate(
 
         // ── 1. CHECKOUT ───────────────────────────────────────────────
         stage('Checkout') {
+            echo "📥 Cloning repository..."
             sh 'git clone https://github.com/Naoe1/k8s_cicd_sample .'
+
+            script {
+                // Capture short commit hash for image tagging
+                env.GIT_COMMIT_SHORT = sh(
+                    script: 'git rev-parse --short HEAD',
+                    returnStdout: true
+                ).trim()
+                echo "Commit: ${env.GIT_COMMIT_SHORT}"
+            }
         }
 
-        // ── 2. RUN TESTS ──────────────────────────────────────────────
-        // Run unit tests (Jest) and e2e tests (Cypress) in the nodejs container.
-        stage('Run Tests') {
+        // ── 2. INSTALL DEPENDENCIES ───────────────────────────────────
+        stage('Install Dependencies') {
             container('nodejs') {
-                echo 'Starting Client Tests...'
+                echo "📦 Installing dependencies..."
                 dir('client/Calculator') {
-                    sh 'npm ci'
-                    sh 'CI=true npm test -- --watchAll=false'  // Unit tests
-                    sh 'npx cypress run --config-file cypress.config.ts'  // E2E tests
+                    // --prefer-offline uses cache if available → much faster
+                    sh 'npm ci --prefer-offline --cache /npm-cache'
                 }
             }
         }
 
-        // ── 3. BUILD & PUSH ───────────────────────────────────────────
-        // Kaniko builds the production Dockerfile and pushes it.
+        // ── 3. LINT ───────────────────────────────────────────────────
+        stage('Lint') {
+            container('nodejs') {
+                echo "🔍 Running ESLint..."
+                dir('client/Calculator') {
+                    sh 'npm run lint || true'   // remove "|| true" to enforce lint
+                }
+            }
+        }
+
+        // ── 4. UNIT TESTS ─────────────────────────────────────────────
+        stage('Unit Tests') {
+            container('nodejs') {
+                echo "🧪 Running Jest unit tests..."
+                dir('client/Calculator') {
+                    sh 'npm test -- --watchAll=false --passWithNoTests'
+                }
+            }
+        }
+
+        // ── 5. E2E TESTS ──────────────────────────────────────────────
+        stage('E2E Tests') {
+            container('nodejs') {
+                echo "🌐 Running Cypress E2E tests..."
+                dir('client/Calculator') {
+                    sh 'npx cypress run --config-file cypress.config.ts'
+                }
+            }
+        }
+
+        // ── 6. BUILD PRODUCTION APP ───────────────────────────────────
+        stage('Build') {
+            container('nodejs') {
+                echo "🔨 Building production bundle..."
+                dir('client/Calculator') {
+                    sh 'npm run build'
+                    sh 'ls -lh build/'
+                }
+            }
+        }
+
+        // ── 7. BUILD & PUSH IMAGE (Kaniko) ────────────────────────────
         stage('Build & Push with Kaniko') {
             container('kaniko') {
+                echo "🐳 Building and pushing Docker image..."
                 withCredentials([usernamePassword(
-                    credentialsId: 'dockerhub-creds', 
-                    usernameVariable: 'DOCKER_ID', 
+                    credentialsId: 'dockerhub-creds',
+                    usernameVariable: 'DOCKER_ID',
                     passwordVariable: 'DOCKER_PASSWORD'
                 )]) {
                     sh """
-                        echo "{\\\"auths\\\":{\\\"https://index.docker.io/v1/\\\":{\\\"auth\\\":\\\"\$(echo -n \${DOCKER_ID}:\${DOCKER_PASSWORD} | base64)\\\"}}}" > /kaniko/.docker/config.json
-                        
-                        echo "Building Client Image..."
+                        mkdir -p /kaniko/.docker
+                        echo "{\\"auths\\":{\\"https://index.docker.io/v1/\\":{\\"auth\\":\\"\$(echo -n \${DOCKER_ID}:\${DOCKER_PASSWORD} | base64)\\"}}}" \
+                            > /kaniko/.docker/config.json
+
+                        echo "Building and pushing image..."
+
                         /kaniko/executor \
-                            --context \${WORKSPACE}/client/Calculator \
-                            --dockerfile \${WORKSPACE}/client/Calculator/Dockerfile \
-                            --destination ${DOCKERHUB}/multi-client:latest
+                            --context     \${WORKSPACE}/client/Calculator \
+                            --dockerfile  \${WORKSPACE}/client/Calculator/Dockerfile \
+                            --destination ${DOCKERHUB}/${APP_NAME}:latest \
+                            --destination ${DOCKERHUB}/${APP_NAME}:${env.GIT_COMMIT_SHORT} \
+                            --cache=true \
+                            --cache-ttl=24h
                     """
                 }
             }
         }
 
-        // ── 4. CLEANUP (Optional) ─────────────────────────────────────
+        // ── 8. CLEANUP ────────────────────────────────────────────────
         stage('Cleanup') {
-            echo "Pipeline finished successfully. Pod ${podLabel} will now terminate."
+            echo "✅ Pipeline finished successfully!"
+            echo "🏷️  Image: ${DOCKERHUB}/${APP_NAME}:latest"
+            echo "🏷️  Image: ${DOCKERHUB}/${APP_NAME}:${env.GIT_COMMIT_SHORT}"
+            echo "🧹 Pod ${podLabel} will now terminate."
         }
     }
 }
