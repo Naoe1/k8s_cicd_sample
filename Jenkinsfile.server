@@ -1,5 +1,5 @@
 def DOCKERHUB = 'zlhu3'
-def podLabel = "jenkins-pipeline-${UUID.randomUUID().toString().take(8)}"
+def podLabel = "jenkins-backend-pipeline-${UUID.randomUUID().toString().take(8)}"
 
 podTemplate(
     label: podLabel,
@@ -36,6 +36,7 @@ podTemplate(
         }
 
         // ── 2. RUN TESTS ──────────────────────────────────────────────
+        // Instead of 'docker run', we run tests directly in the node container.
         stage('Run Tests') {
             container('nodejs') {
                 echo 'Starting Backend Tests...'
@@ -43,16 +44,11 @@ podTemplate(
                     sh 'npm ci'
                     sh 'CI=true npm test -- --watchAll=false'
                 }
-                
-                echo 'Starting Frontend Tests...'
-                dir('client/Calculator') {
-                    sh 'CYPRESS_INSTALL_BINARY=0 CYPRESS_SKIP_VERIFY=true npm ci'
-                    sh 'CI=true npm test -- --watchAll=false --verbose --maxWorkers=2'
-                }
             }
         }
 
         // ── 3. BUILD & PUSH ───────────────────────────────────────────
+        // Kaniko handles building the production Dockerfile and pushing it.
         stage('Build & Push with Kaniko') {
             container('kaniko') {
                 withCredentials([usernamePassword(
@@ -68,18 +64,12 @@ podTemplate(
                             --context \${WORKSPACE}/server \
                             --dockerfile \${WORKSPACE}/server/Dockerfile \
                             --destination ${DOCKERHUB}/multi-server:latest
-                        
-                        echo "Building Client Image..."
-                        /kaniko/executor \
-                            --context \${WORKSPACE}/client/Calculator \
-                            --dockerfile \${WORKSPACE}/client/Calculator/Dockerfile \
-                            --destination ${DOCKERHUB}/multi-client:latest
                     """
                 }
             }
         }
 
-        // ── 4. CLEANUP ────────────────────────────────────────────────
+        // ── 4. CLEANUP (Optional) ─────────────────────────────────────
         stage('Cleanup') {
             echo "Pipeline finished successfully. Pod ${podLabel} will now terminate."
         }
