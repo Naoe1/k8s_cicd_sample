@@ -1,5 +1,5 @@
-def DOCKERHUB = 'zlhu3'
-def APP_NAME  = 'multi-client'
+def DOCKERHUB = 'zeninnit'
+def APP_NAME  = 'devops'
 def podLabel  = "jenkins-client-pipeline-${UUID.randomUUID().toString().take(8)}"
 
 podTemplate(
