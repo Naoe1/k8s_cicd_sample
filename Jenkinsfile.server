@@ -32,7 +32,7 @@ podTemplate(
 
         // ── 1. CHECKOUT ───────────────────────────────────────────────
         stage('Checkout') {
-            sh 'git clone https://github.com/Naoe1/k8s_cicd_sample .'
+            checkout scm
         }
 
         // ── 2. RUN TESTS ──────────────────────────────────────────────
