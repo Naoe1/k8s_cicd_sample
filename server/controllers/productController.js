@@ -1,4 +1,9 @@
 import products from "../models/productModel.js";
+import {
+  findById,
+  filterByCategory,
+  filterInStock,
+} from "../utils/productUtils.js";
 
 // Get all products
 const getAllProducts = (req, res) => {
@@ -12,7 +17,7 @@ const getAllProducts = (req, res) => {
 // Get single product by ID
 const getProductById = (req, res) => {
   const id = parseInt(req.params.id);
-  const product = products.find((p) => p.id === id);
+  const product = findById(products, id);
 
   if (!product) {
     return res.status(404).json({
@@ -38,9 +43,7 @@ const getProductsByCategory = (req, res) => {
     });
   }
 
-  const filteredProducts = products.filter(
-    (p) => p.category.toLowerCase() === category.toLowerCase(),
-  );
+  const filteredProducts = filterByCategory(products, category);
 
   res.json({
     success: true,
@@ -51,7 +54,7 @@ const getProductsByCategory = (req, res) => {
 
 // Get products in stock
 const getInStockProducts = (req, res) => {
-  const inStockProducts = products.filter((p) => p.inStock);
+  const inStockProducts = filterInStock(products);
 
   res.json({
     success: true,

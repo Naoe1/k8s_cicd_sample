@@ -43,7 +43,10 @@ app.get("/", (req, res) => {
     message: "Welcome to the Product API",
     version: "1.0.0",
     endpoints: {
-      products: "/api/products",
+      getAllProducts: "GET /api/products",
+      getProductById: "GET /api/products/:id",
+      getByCategory: "GET /api/products/category?category=<name>",
+      getInStock: "GET /api/products/in-stock",
     },
   });
 });
