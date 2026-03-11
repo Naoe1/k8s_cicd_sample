@@ -32,6 +32,9 @@ spec:
             requests:
               memory: "500Mi"
               cpu: "500m"
+          env:
+            - name: JENKINS_OPTS
+              value: "--prefix=/jenkins"
           ports:
             - name: httpport
               containerPort: 8080
@@ -39,7 +42,7 @@ spec:
               containerPort: 50000
           livenessProbe:
             httpGet:
-              path: "/login"
+              path: "/jenkins/login"
               port: 8080
             initialDelaySeconds: 90
             periodSeconds: 10
@@ -47,7 +50,7 @@ spec:
             failureThreshold: 5
           readinessProbe:
             httpGet:
-              path: "/login"
+              path: "/jenkins/login"
               port: 8080
             initialDelaySeconds: 60
             periodSeconds: 10
