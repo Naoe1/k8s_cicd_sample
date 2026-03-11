@@ -67,7 +67,19 @@ podTemplate(
             }
         }
 
-        // ── 4. CLEANUP ─────────────────────────────────────
+        // ── 4. DEPLOY TO AKS ──────────────────────────────────────
+        stage('Deploy to AKS') {
+            sh '''
+                curl -LO "https://dl.k8s.io/release/$(curl -Ls https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+                chmod +x kubectl
+                ./kubectl apply -f k8s-aks/server/cluster-ip-service.yaml
+                ./kubectl apply -f k8s-aks/server/deployment.yaml
+                ./kubectl rollout restart deployment/server-deployment -n devops-tools
+                ./kubectl rollout status deployment/server-deployment -n devops-tools --timeout=120s
+            '''
+        }
+
+        // ── 5. CLEANUP ─────────────────────────────────────
         stage('Cleanup') {
             echo "Pipeline finished successfully. Pod ${podLabel} will now terminate."
         }
