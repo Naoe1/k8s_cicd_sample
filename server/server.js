@@ -1,5 +1,5 @@
 import express from "express";
-import calculatorRoutes from "./routes/calculatorRoutes.js";
+import productRoutes from "./routes/productRoutes.js";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -40,15 +40,18 @@ app.use((req, res, next) => {
 // Routes
 app.get("/", (req, res) => {
   res.json({
-    message: "Welcome to the Calculator API",
+    message: "Welcome to the Product API",
     version: "1.0.0",
     endpoints: {
-      calculate: "/api/calculate",
+      getAllProducts: "GET /api/products",
+      getProductById: "GET /api/products/:id",
+      getByCategory: "GET /api/products/category?category=<name>",
+      getInStock: "GET /api/products/in-stock",
     },
   });
 });
 
-app.use("/api/calculate", calculatorRoutes);
+app.use("/api/products", productRoutes);
 
 // 404 handler
 app.use((req, res) => {
