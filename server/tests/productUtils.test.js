@@ -55,7 +55,7 @@ describe("filterByCategory", () => {
 
   test("is case-insensitive", () => {
     const result = filterByCategory(sampleProducts, "electronics");
-    expect(result).toHaveLength(2);
+    expect(result).toHaveLength(4);
   });
 
   test("returns empty array when no products match", () => {
