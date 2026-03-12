@@ -41,7 +41,7 @@ app.use((req, res, next) => {
 app.get("/", (req, res) => {
   res.json({
     message: "Welcome to the Product API",
-    version: "1.0.7",
+    version: "1.0.8",
     endpoints: {
       getAllProducts: "GET /api/products",
       getProductById: "GET /api/products/:id",
