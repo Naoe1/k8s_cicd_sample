@@ -97,13 +97,13 @@ podTemplate(
             throw e
         } finally {
             // ── POST BUILD: GITHUB COMMIT STATUS ──────────────────────────
+            def gitState   = (currentBuild.result == null || currentBuild.result == 'SUCCESS') ? 'SUCCESS' : 'FAILURE'
+            def gitMessage = (gitState == 'SUCCESS') ? 'Build succeeded' : 'Build failed'
             step([
                 $class: 'GitHubCommitStatusSetter',
                 contextSource: [$class: 'ManuallyEnteredCommitContextSource', context: 'Jenkins CI / Server'],
                 statusResultSource: [$class: 'ConditionalStatusResultSource', results: [
-                    [$class: 'BetterThanOrEqualBuildResult', result: 'SUCCESS', state: 'SUCCESS', message: 'Build succeeded'],
-                    [$class: 'BetterThanOrEqualBuildResult', result: 'FAILURE', state: 'FAILURE', message: 'Build failed'],
-                    [$class: 'AnyBuildResult', state: 'FAILURE', message: 'Build failed']
+                    [$class: 'AnyBuildResult', state: gitState, message: gitMessage]
                 ]]
             ])
         }
