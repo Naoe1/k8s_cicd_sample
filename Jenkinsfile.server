@@ -1,5 +1,19 @@
 def DOCKERHUB = 'zlhu3'
 def podLabel = "jenkins-backend-pipeline-${UUID.randomUUID().toString().take(8)}"
+def REPO_URL = 'https://github.com/Naoe1/k8s_cicd_sample'  
+
+def notifyGitHub(String state, String context, String description) {
+    githubNotify(
+        credentialsId: 'github-token',  
+        repo: 'k8s_cicd_sample',              
+        account: 'Naoe1',          
+        sha: env.GIT_COMMIT,
+        status: state,
+        context: context,
+        description: description,
+        targetUrl: env.BUILD_URL
+    )
+}
 
 podTemplate(
     label: podLabel,
@@ -33,54 +47,80 @@ podTemplate(
         // ── 1. CHECKOUT ───────────────────────────────────────────────
         stage('Checkout') {
             checkout scm
+            notifyGitHub('PENDING', 'ci/jenkins', 'Pipeline started')
         }
 
         // ── 2. RUN TESTS ──────────────────────────────────────────────
         stage('Run Tests') {
-            container('nodejs') {
-                echo 'Starting Backend Tests...'
-                dir('server') {
-                    sh 'npm ci'
-                    sh 'CI=true npm test -- --watchAll=false'
+            notifyGitHub('PENDING', 'ci/jenkins/tests', 'Running tests...')
+            try {
+                container('nodejs') {
+                    echo 'Starting Backend Tests...'
+                    dir('server') {
+                        sh 'npm ci'
+                        sh 'CI=true npm test -- --watchAll=false'
+                    }
                 }
+                notifyGitHub('SUCCESS', 'ci/jenkins/tests', 'Tests passed')
+            } catch (err) {
+                notifyGitHub('FAILURE', 'ci/jenkins/tests', 'Tests failed')
+                notifyGitHub('FAILURE', 'ci/jenkins', 'Pipeline failed at tests')
+                throw err
             }
         }
 
         // ── 3. BUILD & PUSH ───────────────────────────────────────────
         stage('Build & Push with Kaniko') {
-            container('kaniko') {
-                withCredentials([usernamePassword(
-                    credentialsId: 'dockerhub-creds', 
-                    usernameVariable: 'DOCKER_ID', 
-                    passwordVariable: 'DOCKER_PASSWORD'
-                )]) {
-                    sh """
-                        echo "{\\\"auths\\\":{\\\"https://index.docker.io/v1/\\\":{\\\"auth\\\":\\\"\$(echo -n \${DOCKER_ID}:\${DOCKER_PASSWORD} | base64)\\\"}}}" > /kaniko/.docker/config.json
-                        
-                        echo "Building Server Image..."
-                        /kaniko/executor \
-                            --context \${WORKSPACE}/server \
-                            --dockerfile \${WORKSPACE}/server/Dockerfile \
-                            --destination ${DOCKERHUB}/sample-server:latest
-                    """
+            notifyGitHub('PENDING', 'ci/jenkins/build', 'Building Docker image...')
+            try {
+                container('kaniko') {
+                    withCredentials([usernamePassword(
+                        credentialsId: 'dockerhub-creds', 
+                        usernameVariable: 'DOCKER_ID', 
+                        passwordVariable: 'DOCKER_PASSWORD'
+                    )]) {
+                        sh """
+                            echo "{\\\"auths\\\":{\\\"https://index.docker.io/v1/\\\":{\\\"auth\\\":\\\"\$(echo -n \${DOCKER_ID}:\${DOCKER_PASSWORD} | base64)\\\"}}}" > /kaniko/.docker/config.json
+                            
+                            echo "Building Server Image..."
+                            /kaniko/executor \
+                                --context \${WORKSPACE}/server \
+                                --dockerfile \${WORKSPACE}/server/Dockerfile \
+                                --destination ${DOCKERHUB}/sample-server:latest
+                        """
+                    }
                 }
+                notifyGitHub('SUCCESS', 'ci/jenkins/build', 'Image pushed to DockerHub')
+            } catch (err) {
+                notifyGitHub('FAILURE', 'ci/jenkins/build', 'Build/push failed')
+                notifyGitHub('FAILURE', 'ci/jenkins', 'Pipeline failed at build')
+                throw err
             }
         }
 
         // ── 4. DEPLOY TO AKS ──────────────────────────────────────
         stage('Deploy to AKS') {
-            sh '''
-                curl -LO "https://dl.k8s.io/release/$(curl -Ls https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-                chmod +x kubectl
-                ./kubectl apply -f k8s-aks/server/cluster-ip-service.yaml
-                ./kubectl apply -f k8s-aks/server/deployment.yaml
-                ./kubectl rollout restart deployment/server-deployment -n devops-tools
-                ./kubectl rollout status deployment/server-deployment -n devops-tools --timeout=120s
-            '''
+            notifyGitHub('PENDING', 'ci/jenkins/deploy', 'Deploying to AKS...')
+            try {
+                sh '''
+                    curl -LO "https://dl.k8s.io/release/$(curl -Ls https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+                    chmod +x kubectl
+                    ./kubectl apply -f k8s-aks/server/cluster-ip-service.yaml
+                    ./kubectl apply -f k8s-aks/server/deployment.yaml
+                    ./kubectl rollout restart deployment/server-deployment -n devops-tools
+                    ./kubectl rollout status deployment/server-deployment -n devops-tools --timeout=120s
+                '''
+                notifyGitHub('SUCCESS', 'ci/jenkins/deploy', 'Deployed to AKS')
+            } catch (err) {
+                notifyGitHub('FAILURE', 'ci/jenkins/deploy', 'Deployment failed')
+                notifyGitHub('FAILURE', 'ci/jenkins', 'Pipeline failed at deploy')
+                throw err
+            }
         }
 
-        // ── 5. CLEANUP ─────────────────────────────────────
+        // ── 5. CLEANUP / FINAL STATUS ──────────────────────────────────────
         stage('Cleanup') {
+            notifyGitHub('SUCCESS', 'ci/jenkins', 'Pipeline completed successfully')
             echo "Pipeline finished successfully. Pod ${podLabel} will now terminate."
         }
     }
