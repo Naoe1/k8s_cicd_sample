@@ -34,7 +34,13 @@ podTemplate(
             // ── 1. CHECKOUT ───────────────────────────────────────────────
             stage('Checkout') {
                 checkout scm
-                githubNotify context: 'Jenkins CI / Server', description: 'Build in progress...', status: 'PENDING'
+                step([
+                    $class: 'GitHubCommitStatusSetter',
+                    contextSource: [$class: 'ManuallyEnteredCommitContextSource', context: 'Jenkins CI / Server'],
+                    statusResultSource: [$class: 'ConditionalStatusResultSource', results: [
+                        [$class: 'AnyBuildResult', message: 'Build in progress...', state: 'PENDING']
+                    ]]
+                ])
             }
 
             // ── 2. RUN TESTS ──────────────────────────────────────────────
@@ -91,12 +97,15 @@ podTemplate(
             throw e
         } finally {
             // ── POST BUILD: GITHUB COMMIT STATUS ──────────────────────────
-            def buildResult = currentBuild.result ?: 'SUCCESS'
-            if (buildResult == 'SUCCESS') {
-                githubNotify context: 'Jenkins CI / Server', description: 'Build succeeded', status: 'SUCCESS'
-            } else {
-                githubNotify context: 'Jenkins CI / Server', description: 'Build failed', status: 'FAILURE'
-            }
+            step([
+                $class: 'GitHubCommitStatusSetter',
+                contextSource: [$class: 'ManuallyEnteredCommitContextSource', context: 'Jenkins CI / Server'],
+                statusResultSource: [$class: 'ConditionalStatusResultSource', results: [
+                    [$class: 'BetterThanOrEqualBuildResult', result: 'SUCCESS', state: 'SUCCESS', message: 'Build succeeded'],
+                    [$class: 'BetterThanOrEqualBuildResult', result: 'FAILURE', state: 'FAILURE', message: 'Build failed'],
+                    [$class: 'AnyBuildResult', state: 'FAILURE', message: 'Build failed']
+                ]]
+            ])
         }
     }
 }
